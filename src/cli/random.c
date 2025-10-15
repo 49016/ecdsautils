@@ -37,10 +37,10 @@ int random_bytes(unsigned char *buffer, size_t len) {
   int fd;
   size_t read_bytes = 0;
 
-  fd = open("/dev/random", O_RDONLY);
+  fd = open("/dev/urandom", O_RDONLY);
 
   if (fd < 0) {
-    fprintf(stderr, "Can't open /dev/random: %s\n", strerror(errno));
+    fprintf(stderr, "Can't open /dev/urandom: %s\n", strerror(errno));
     goto out_error;
   }
 
