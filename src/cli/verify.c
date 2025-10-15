@@ -31,6 +31,9 @@
 #include <ecdsautil/ecdsa.h>
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <limits.h>
 #include <getopt.h>
 
 
@@ -51,6 +54,11 @@ int verify(const char *command, int argc, char **argv) {
 
     switch (opt) {
       case 's':
+        if (signatures.size >= 1024) {
+          fprintf(stderr, "Too many signatures (max 1024)\n");
+          goto out;
+        }
+
         if (!parsehex(signature, optarg, sizeof(signature))) {
           fprintf(stderr, "Error while reading signature %s\n", optarg);
           break;
@@ -79,24 +87,43 @@ int verify(const char *command, int argc, char **argv) {
         }
         break;
       case 'n':
-        min_good_signatures = atoi(optarg);
+        {
+          char *endptr;
+          errno = 0;
+          long val = strtol(optarg, &endptr, 10);
+          if (errno != 0 || *endptr != '\0' || val < 1 || val > LONG_MAX) {
+            fprintf(stderr, "Invalid value for -n: %s (must be a positive integer)\n", optarg);
+            goto out;
+          }
+          min_good_signatures = (size_t)val;
+        }
     }
   }
 
-  if (optind > argc || pubkeys.size == 0 || signatures.size == 0) {
+  if (optind >= argc || pubkeys.size == 0 || signatures.size == 0) {
     fprintf(stderr, "Usage: %s [-s signature ...] [-p pubkey ...] [-n num] file\n", command);
+    goto out;
+  }
+
+  if (signatures.size > 1024) {
+    fprintf(stderr, "Too many signatures (max 1024)\n");
     goto out;
   }
 
   ecc_int256_t hash;
 
-  if (!sha256_file((optind <= argc) ? argv[optind] : NULL, hash.p)) {
+  if (!sha256_file(argv[optind], hash.p)) {
     fprintf(stderr, "Error while hashing file\n");
     goto out;
   }
 
   {
-    ecdsa_verify_context_t ctxs[signatures.size];
+    ecdsa_verify_context_t *ctxs = malloc(sizeof(ecdsa_verify_context_t) * signatures.size);
+    if (!ctxs) {
+      fprintf(stderr, "Memory allocation failed\n");
+      goto out;
+    }
+
     for (size_t i = 0; i < signatures.size; i++)
       ecdsa_verify_prepare_legacy(&ctxs[i], &hash, SET_INDEX(signatures, i));
 
@@ -104,6 +131,8 @@ int verify(const char *command, int argc, char **argv) {
 
     if (good_signatures >= min_good_signatures)
       ret = 0;
+
+    free(ctxs);
   }
 
 out:

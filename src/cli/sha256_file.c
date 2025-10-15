@@ -74,10 +74,12 @@ int sha256_file(const char *fname, unsigned char *hash) {
 
   ecdsa_sha256_final(&ctx, hash);
 
-  close(fd);
+  if (fname)
+    close(fd);
   return 1;
 
 out_error:
-  close(fd);
+  if (fname && fd >= 0)
+    close(fd);
   return 0;
 }

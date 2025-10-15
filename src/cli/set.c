@@ -140,7 +140,7 @@ bool set_add(set *set, void *el) {
 
 		if (cmp == 0)
 			return true; /* We're done here: the element already exists */
-		else if (cmp < 0)
+		else if (cmp > 0)
 			max = cur;
 		else
 			min = cur+1;
